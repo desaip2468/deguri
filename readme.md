@@ -7,3 +7,8 @@
 - mysql
 - R 3.x with 'tidyverse' installed
 
+### Usage
+- Run on a server with all prerequisites installed.
+
+### Note
+- Currently running on https://pjshwa.me/shiny
