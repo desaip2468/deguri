@@ -1,4 +1,7 @@
 library(shiny)
+library(DBI)
+
+connection <- dbConnect(RMariaDB::MariaDB(), group = "desaip")
 
 ui <- fluidPage(
   titlePanel("submitButton example"),
@@ -9,9 +12,12 @@ ui <- fluidPage(
       textInput("text", "Text:", "text here"),
       submitButton("Submit")
     )),
-    column(6,
+    column(4,
       plotOutput("plot1", width = 400, height = 300),
       verbatimTextOutput("text")
+    ),
+    column(2,
+      verbatimTextOutput("dbOutput")
     )
   )
 )
@@ -23,6 +29,10 @@ server <- function(input, output) {
 
   output$text <- renderText({
     paste("Input text is:", input$text)
+  })
+
+  output$dbOutput <- renderText({
+    paste(dbListTables(connection), collapse = '')
   })
 }
 

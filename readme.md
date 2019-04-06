@@ -5,7 +5,7 @@
 
 ### Prerequisites
 - mysql
-- R 3.x with 'tidyverse' installed
+- R 3.x with 'tidyverse', 'RMariaDB' installed
 
 ### Usage
 - Run on a server with all prerequisites installed.
