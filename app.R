@@ -1,38 +1,47 @@
 library(shiny)
+library(shinydashboard)
 library(DBI)
+library(DT)
 
 connection <- dbConnect(RMariaDB::MariaDB(), group = "desaip")
-
-ui <- fluidPage(
-  titlePanel("submitButton example"),
-  fluidRow(
-    column(3, wellPanel(
-      sliderInput("n", "N:", min = 10, max = 1000, value = 200,
-                  step = 10),
-      textInput("text", "Text:", "text here"),
-      submitButton("Submit")
-    )),
-    column(4,
-      plotOutput("plot1", width = 400, height = 300),
-      verbatimTextOutput("text")
-    ),
-    column(2,
-      verbatimTextOutput("dbOutput")
+payment_approval_types <- as.vector(
+  t(
+    dbGetQuery(
+      connection,
+      "SELECT DISTINCT payment_approval_type FROM payments"
+    )
+  )
+)
+ui <- dashboardPage(
+  dashboardHeader(),
+  dashboardSidebar(disable = TRUE),
+  dashboardBody(
+    tabItem(tabName = "Demo",
+      fluidRow(
+        box(
+          selectInput(
+            "payment_approval_type",
+            "간편결제 승인 타입",
+            choices = payment_approval_types,
+            selected = 1
+          )
+        ),
+        box(DT::dataTableOutput("dbOutput"))
+      )
     )
   )
 )
 
 server <- function(input, output) {
-  output$plot1 <- renderPlot({
-    hist(rnorm(input$n))
-  })
-
-  output$text <- renderText({
-    paste("Input text is:", input$text)
-  })
-
-  output$dbOutput <- renderText({
-    paste(dbListTables(connection), collapse = '')
+  output$dbOutput <- renderDataTable({
+    prepare <- dbSendQuery(
+      connection,
+      "SELECT panel_id, gender, age FROM payments WHERE payment_approval_type = ? LIMIT 100"
+    )
+    dbBind(prepare, input$payment_approval_type)
+    result <- dbFetch(prepare)
+    dbClearResult(prepare)
+    datatable(result, options = list(orderClasses = TRUE, lengthMenu = c(5, 10, 30), pageLength = 5))
   })
 }
 
