@@ -11,4 +11,4 @@
 - Run on a server with all prerequisites installed.
 
 ### Note
-- Currently running on https://pjshwa.me/shiny
+- Currently running on https://shiny.pjshwa.me/
