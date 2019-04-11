@@ -4,6 +4,8 @@ library(DBI)
 library(DT)
 library(ggplot2)
 
+source('multiplot.R')
+
 connection <- dbConnect(RMariaDB::MariaDB(), group = "desaip")
 payment_approval_types <- as.vector(
   t(
@@ -98,9 +100,14 @@ server <- function(input, output) {
 
       # Sort by count
       result$panel_id <- factor(result$panel_id, levels = result$panel_id[order(as.integer(-result$panel_id_count))])
-      ggplot(result, aes(panel_id, as.integer(panel_id_count))) +
-        geom_bar(stat = "identity") +
-        labs(title = "결제건수 100개 이상 가맹점의 패널 분포", x = "panel_id", y = "빈도")
+      multiplot(
+        ggplot(result, aes(panel_id, as.integer(panel_id_count))) +
+          geom_bar(stat = "identity") +
+          labs(title = "결제건수 100개 이상 가맹점의 패널 분포", x = "panel_id", y = "빈도"),
+        ggplot(result, aes(as.integer(panel_id_count))) +
+          geom_bar(stat = "count") +
+          labs(title = "결제건수 100개 이상 가맹점의 패널 분포", x = "freq", y = "count")
+      )
     }
     else {
       prepare <- dbSendQuery(
@@ -112,9 +119,14 @@ server <- function(input, output) {
       dbClearResult(prepare)
 
       result$panel_id <- factor(result$panel_id, levels = result$panel_id[order(as.integer(-result$panel_id_count))])
-      ggplot(result, aes(panel_id, as.integer(panel_id_count))) +
-        geom_bar(stat = "identity") +
-        labs(title = paste("가맹점 ", input$approval_store, "의 패널 분포"), x = "panel_id", y = "빈도")
+      multiplot(
+        ggplot(result, aes(panel_id, as.integer(panel_id_count))) +
+          geom_bar(stat = "identity") +
+          labs(title = paste("가맹점 ", input$approval_store, "의 패널 분포"), x = "panel_id", y = "빈도"),
+        ggplot(result, aes(as.integer(panel_id_count))) +
+          geom_bar(stat = "count") +
+          labs(title = paste("가맹점 ", input$approval_store, "의 패널 분포"), x = "freq", y = "count")
+      )
     }
   })
 
