@@ -11,7 +11,7 @@ approval_stores <- as.vector(
   t(
     dbGetQuery(
       connection,
-      "SELECT approval_store FROM payments WHERE approval_store IS NOT NULL GROUP BY approval_store HAVING COUNT(panel_id) > 100"
+      "SELECT approval_store FROM simple_payments WHERE approval_store IS NOT NULL GROUP BY approval_store HAVING COUNT(panel_id) > 100"
     )
   )
 )
@@ -51,7 +51,7 @@ server <- function(input, output) {
     if (input$approval_store == '전체') {
       if (input$gender == 0) {
         query <- paste(
-          "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM payments WHERE approval_store IN (\"",
+          "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM simple_payments WHERE approval_store IN (\"",
           paste(approval_stores, collapse = '", "'),
           "\") GROUP BY panel_id HAVING COUNT(panel_id) > 50 AND COUNT(panel_id) < 350"
         )
@@ -59,7 +59,7 @@ server <- function(input, output) {
       }
       else {
         query <- paste(
-          "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM payments WHERE gender = ? AND approval_store IN (\"",
+          "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM simple_payments WHERE gender = ? AND approval_store IN (\"",
           paste(approval_stores, collapse = '", "'),
           "\") GROUP BY panel_id HAVING COUNT(panel_id) > 50 AND COUNT(panel_id) < 350"
         )
@@ -68,11 +68,11 @@ server <- function(input, output) {
     }
     else {
       if (input$gender == 0) {
-        query <- "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM payments WHERE approval_store = ? GROUP BY panel_id"
+        query <- "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM simple_payments WHERE approval_store = ? GROUP BY panel_id"
         bindParameters <- list(input$approval_store)
       }
       else {
-        query <- "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM payments WHERE gender = ? AND approval_store = ? GROUP BY panel_id"
+        query <- "SELECT panel_id, COUNT(panel_id) AS panel_id_count FROM simple_payments WHERE gender = ? AND approval_store = ? GROUP BY panel_id"
         bindParameters <- list(input$gender, input$approval_store)
       }
     }
