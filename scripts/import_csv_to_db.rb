@@ -17,8 +17,8 @@ query_string_header = nil
 CSV.foreach(filename, headers: true) do |row|
   headers ||= row.headers
   query_string_header ||= "INSERT INTO payments (#{headers.join(', ')}) VALUES "
-  query_string_value = "(\"#{row.map {|_h, v| v&.gsub('"', '\"')}.join('", "')}\")".gsub('"NULL"', 'NULL')
-  query_string_body << query_string_value
+  query_string_value = "(\"#{row.map {|_h, v| v&.gsub('\\', '\\\\\\')&.gsub('"', '\"')}.join('", "')}\")".gsub('"NULL"', 'NULL')
+  query_string_body << query_string_value unless row['approval_price'].to_i > 2147483647 # Int max value
   i += 1
   print "\r#{i}/#{total_lines}"
 
