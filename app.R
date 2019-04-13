@@ -15,12 +15,16 @@ approval_stores <- as.vector(
     )
   )
 )
+simplePaymentsFieldDescription <- dbGetQuery(connection, 'DESCRIBE simple_payments')
+integerFields <- simplePaymentsFieldDescription[grepl('int', simplePaymentsFieldDescription$Type),]$Field
+allFieldsWithAgg <- c(paste(simplePaymentsFieldDescription$Field, '- count'), paste(integerFields, '- sum'))
 
 ui <- dashboardPage(
   dashboardHeader(),
   dashboardSidebar(
     sidebarMenu(
-      menuItem("가맹점별 간편결제 빈도", tabName = "freq_by_approval_store")
+      menuItem("가맹점별 간편결제 빈도", tabName = "freq_by_approval_store"),
+      menuItem("Compare arbitrary X, Y", tabName = "plot_by_arbitrary_values")
     )
   ),
   dashboardBody(
@@ -41,6 +45,19 @@ ui <- dashboardPage(
           )
         ),
         plotOutput(outputId = "approvalStorePlot")
+      ),
+      tabItem(
+        tabName = "plot_by_arbitrary_values",
+        box(
+          selectInput(
+            "approval_store2",
+            "가맹점 선택 (100개 이상의 결제건)",
+            choices = c('전체', approval_stores)
+          ),
+          selectInput("field_x", "X축 컬럼 (그룹화 기준)", choices = simplePaymentsFieldDescription$Field),
+          selectInput("field_y", "Y축 컬럼 (그룹화 대상 + 그룹화 함수)", choices = allFieldsWithAgg)
+        ),
+        plotOutput(outputId = "xVersusYPlot")
       )
     )
   )
@@ -91,6 +108,86 @@ server <- function(input, output) {
         geom_bar(stat = "count") +
         labs(title = "", x = "freq", y = "count")
     )
+  })
+
+  output$xVersusYPlot <- renderPlot({
+    fieldYWithAggF <- strsplit(input$field_y, " - ")[[1]]
+    fieldY <- fieldYWithAggF[1]
+    aggF <- fieldYWithAggF[2]
+
+    if (input$approval_store2 == '전체') {
+      if (aggF == 'count') {
+        query <- paste(
+          "SELECT ",
+          input$field_x,
+          ", COUNT(DISTINCT ",
+          fieldY,
+          ") AS count FROM simple_payments WHERE approval_store IN (\"",
+          paste(approval_stores, collapse = '", "'),
+          "\") GROUP BY ",
+          input$field_x,
+          " ORDER BY count DESC LIMIT 50"
+        )
+        bindParameters <- list()
+      }
+      else if (aggF == 'sum') {
+        query <- paste(
+          "SELECT ",
+          input$field_x,
+          ", SUM(",
+          fieldY,
+          ") AS sum FROM simple_payments WHERE approval_store IN (\"",
+          paste(approval_stores, collapse = '", "'),
+          "\") GROUP BY ",
+          input$field_x,
+          " ORDER BY sum DESC LIMIT 50"
+        )
+        bindParameters <- list()
+      }
+    }
+    else {
+      if (aggF == 'count') {
+        query <- paste(
+          "SELECT ",
+          input$field_x,
+          ", COUNT(DISTINCT ",
+          fieldY,
+          ") AS count FROM simple_payments WHERE approval_store = ? GROUP BY ",
+          input$field_x,
+          " ORDER BY count DESC LIMIT 50"
+        )
+        bindParameters <- list(input$approval_store2)
+      }
+      else if (aggF == 'sum') {
+        query <- paste(
+          "SELECT ",
+          input$field_x,
+          ", SUM(",
+          fieldY,
+          ") AS sum FROM simple_payments WHERE approval_store = ? GROUP BY ",
+          input$field_x,
+          " ORDER BY sum DESC LIMIT 50"
+        )
+        bindParameters <- list(input$approval_store2)
+      }
+    }
+    prepare <- dbSendQuery(connection, query)
+    if (length(bindParameters) != 0) dbBind(prepare, bindParameters)
+    result <- dbFetch(prepare)
+    dbClearResult(prepare)
+
+    # Integer conversion, sorting
+    if (aggF == 'count') {
+      result$count <- as.integer(result$count)
+    }
+    else if (aggF == 'sum') {
+      result$sum <- as.integer(result$sum)
+    }
+
+    ggplot(result, aes_string(input$field_x, aggF)) +
+      geom_bar(stat = "identity") +
+      labs(title = paste(input$approval_store2, input$field_x, " vs ", input$field_y), x = input$field_x, y = input$field_y) +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1), text=element_text(size = 14, family = "NanumGothic"))
   })
 }
 
