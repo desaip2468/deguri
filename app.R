@@ -3,21 +3,24 @@ library(shinydashboard)
 library(DBI)
 library(DT)
 library(ggplot2)
+library(stringr)
 
 source('multiplot.R')
 
 connection <- dbConnect(RMariaDB::MariaDB(), group = "desaip")
 approval_stores <- as.vector(
   t(
-    dbGetQuery(
-      connection,
-      "SELECT approval_store FROM simple_payments WHERE approval_store IS NOT NULL GROUP BY approval_store HAVING COUNT(panel_id) > 100"
-    )
+    dbGetQuery(connection, "SELECT approval_store FROM simple_payments WHERE approval_store IS NOT NULL GROUP BY approval_store HAVING COUNT(panel_id) > 100")
   )
 )
+
 simplePaymentsFieldDescription <- dbGetQuery(connection, 'DESCRIBE simple_payments')
 integerFields <- simplePaymentsFieldDescription[grepl('int', simplePaymentsFieldDescription$Type),]$Field
-allFieldsWithAgg <- c(paste(simplePaymentsFieldDescription$Field, '- count'), paste(integerFields, '- sum'))
+allFieldsWithAgg <- c(
+  paste(simplePaymentsFieldDescription$Field, '- count'),
+  paste(simplePaymentsFieldDescription$Field, '- distinct_count'),
+  paste(integerFields, '- sum')
+)
 
 ui <- dashboardPage(
   dashboardHeader(),
@@ -117,16 +120,45 @@ server <- function(input, output) {
 
     if (input$approval_store2 == '전체') {
       if (aggF == 'count') {
+        availableApprovalStores <- paste(approval_stores, collapse = '", "')
+
+        # 전체 count 에 따른 상위 30개 field_x만 대상으로 분석해 보자
+        preQuery <- str_interp("
+          SELECT ${input$field_x}, COUNT(DISTINCT ${fieldY}) AS distinct_count
+          FROM simple_payments WHERE approval_store IN (\"${availableApprovalStores}\")
+          GROUP BY ${input$field_x} ORDER BY distinct_count DESC LIMIT 30
+        ")
+        preQueryResult <- dbGetQuery(connection, preQuery)
+        fieldXLimits <- paste(as.vector(t(preQueryResult[input$field_x])), collapse = '", "')
+
+        query <- str_interp("
+          SELECT field1, field2, field2_count
+          FROM (
+            SELECT ${input$field_x} AS field1, ${fieldY} AS field2, COUNT(${fieldY}) AS field2_count,
+              @rank := IF(@current_field_value = ${input$field_x}, @rank + 1, 1) AS field_rank,
+              @current_field_value := ${input$field_x}
+            FROM simple_payments
+            WHERE ${fieldY} IS NOT NULL
+            AND approval_store IN (\"${availableApprovalStores}\")
+            AND ${input$field_x} IN (\"${fieldXLimits}\")
+            GROUP BY ${input$field_x}, ${fieldY}
+            ORDER BY ${input$field_x}, COUNT(${fieldY}) DESC
+          ) ranked_payments
+          WHERE field_rank <= 10
+        ")
+        bindParameters <- list()
+      }
+      else if (aggF == 'distinct_count') {
         query <- paste(
           "SELECT ",
           input$field_x,
           ", COUNT(DISTINCT ",
           fieldY,
-          ") AS count FROM simple_payments WHERE approval_store IN (\"",
+          ") AS distinct_count FROM simple_payments WHERE approval_store IN (\"",
           paste(approval_stores, collapse = '", "'),
           "\") GROUP BY ",
           input$field_x,
-          " ORDER BY count DESC LIMIT 50"
+          " ORDER BY distinct_count DESC LIMIT 50"
         )
         bindParameters <- list()
       }
@@ -147,14 +179,44 @@ server <- function(input, output) {
     }
     else {
       if (aggF == 'count') {
+        preQuery <- str_interp("
+          SELECT ${input$field_x}, COUNT(DISTINCT ${fieldY}) AS distinct_count
+          FROM simple_payments WHERE approval_store = ?
+          GROUP BY ${input$field_x} ORDER BY distinct_count DESC LIMIT 30
+        ")
+        preQueryBindParameters <- list(input$approval_store2)
+        preQueryPrepare <- dbSendQuery(connection, preQuery)
+        dbBind(preQueryPrepare, preQueryBindParameters)
+        preQueryResult <- dbFetch(preQueryPrepare)
+        dbClearResult(preQueryPrepare)
+        fieldXLimits <- paste(as.vector(t(preQueryResult[input$field_x])), collapse = '", "')
+
+        query <- str_interp("
+          SELECT field1, field2, field2_count
+          FROM (
+            SELECT ${input$field_x} AS field1, ${fieldY} AS field2, COUNT(${fieldY}) AS field2_count,
+              @rank := IF(@current_field_value = ${input$field_x}, @rank + 1, 1) AS field_rank,
+              @current_field_value := ${input$field_x}
+            FROM simple_payments
+            WHERE ${fieldY} IS NOT NULL
+            AND approval_store = ?
+            AND ${input$field_x} IN (\"${fieldXLimits}\")
+            GROUP BY ${input$field_x}, ${fieldY}
+            ORDER BY ${input$field_x} DESC, COUNT(${fieldY}) DESC
+          ) ranked_payments
+          WHERE field_rank <= 10
+        ")
+        bindParameters <- list(input$approval_store2)
+      }
+      else if (aggF == 'distinct_count') {
         query <- paste(
           "SELECT ",
           input$field_x,
           ", COUNT(DISTINCT ",
           fieldY,
-          ") AS count FROM simple_payments WHERE approval_store = ? GROUP BY ",
+          ") AS distinct_count FROM simple_payments WHERE approval_store = ? GROUP BY ",
           input$field_x,
-          " ORDER BY count DESC LIMIT 50"
+          " ORDER BY distinct_count DESC LIMIT 50"
         )
         bindParameters <- list(input$approval_store2)
       }
@@ -176,18 +238,38 @@ server <- function(input, output) {
     result <- dbFetch(prepare)
     dbClearResult(prepare)
 
-    # Integer conversion, sorting
     if (aggF == 'count') {
-      result$count <- as.integer(result$count)
+      # Integer conversion, sorting
+      result$field2_count <- as.integer(result$field2_count)
+      return(
+        ggplot(result, aes(field1, field2_count, fill = field2)) +
+          geom_bar(position = 'dodge', stat = 'identity') +
+          geom_text(aes(label = field2_count)) +
+          labs(title = paste(input$approval_store2, input$field_x, " vs ", input$field_y), x = input$field_x, y = input$field_y) +
+          theme(
+            axis.text.x = element_text(angle = 90, hjust = 1),
+            text = element_text(size = 14, family = "NanumGothic")
+          )
+      )
     }
-    else if (aggF == 'sum') {
-      result$sum <- as.integer(result$sum)
-    }
+    else {
+      if (aggF == 'distinct_count') {
+        result$distinct_count <- as.integer(result$distinct_count)
+      }
+      else if (aggF == 'sum') {
+        result$sum <- as.integer(result$sum)
+      }
 
-    ggplot(result, aes_string(input$field_x, aggF)) +
-      geom_bar(stat = "identity") +
-      labs(title = paste(input$approval_store2, input$field_x, " vs ", input$field_y), x = input$field_x, y = input$field_y) +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1), text=element_text(size = 14, family = "NanumGothic"))
+      return(
+        ggplot(result, aes_string(input$field_x, aggF)) +
+          geom_bar(stat = "identity") +
+          labs(title = paste(input$approval_store2, input$field_x, " vs ", input$field_y), x = input$field_x, y = input$field_y) +
+          theme(
+            axis.text.x = element_text(angle = 90, hjust = 1),
+            text = element_text(size = 14, family = "NanumGothic")
+          )
+      )
+    }
   })
 }
 
