@@ -57,8 +57,9 @@ server <- function(input, output) {
     aggF <- fieldYWithAggF[2]
 
     if (input$approval_store2 == '전체') {
+      availableApprovalStores <- paste(approval_stores, collapse = '", "')
+
       if (aggF == 'count') {
-        availableApprovalStores <- paste(approval_stores, collapse = '", "')
 
         # 전체 count 에 따른 상위 30개 field_x만 대상으로 분석해 보자
         preQuery <- str_interp("
@@ -87,31 +88,23 @@ server <- function(input, output) {
         bindParameters <- list()
       }
       else if (aggF == 'distinct_count') {
-        query <- paste(
-          "SELECT ",
-          input$field_x,
-          ", COUNT(DISTINCT ",
-          fieldY,
-          ") AS distinct_count FROM simple_payments WHERE approval_store IN (\"",
-          paste(approval_stores, collapse = '", "'),
-          "\") GROUP BY ",
-          input$field_x,
-          " ORDER BY distinct_count DESC LIMIT 50"
-        )
+        query <- str_interp("
+          SELECT ${input$field_x}, COUNT(DISTINCT ${fieldY}) AS distinct_count
+          FROM simple_payments
+          WHERE approval_store IN (\"${availableApprovalStores}\")
+          GROUP BY ${input$field_x}
+          ORDER BY distinct_count DESC LIMIT 50
+        ")
         bindParameters <- list()
       }
       else if (aggF == 'sum') {
-        query <- paste(
-          "SELECT ",
-          input$field_x,
-          ", SUM(",
-          fieldY,
-          ") AS sum FROM simple_payments WHERE approval_store IN (\"",
-          paste(approval_stores, collapse = '", "'),
-          "\") GROUP BY ",
-          input$field_x,
-          " ORDER BY sum DESC LIMIT 50"
-        )
+        query <- str_interp("
+          SELECT ${input$field_x}, SUM(${fieldY}) AS sum
+          FROM simple_payments
+          WHERE approval_store IN (\"${availableApprovalStores}\")
+          GROUP BY ${input$field_x}
+          ORDER BY sum DESC LIMIT 50
+        ")
         bindParameters <- list()
       }
     }
@@ -147,27 +140,23 @@ server <- function(input, output) {
         bindParameters <- list(input$approval_store2)
       }
       else if (aggF == 'distinct_count') {
-        query <- paste(
-          "SELECT ",
-          input$field_x,
-          ", COUNT(DISTINCT ",
-          fieldY,
-          ") AS distinct_count FROM simple_payments WHERE approval_store = ? GROUP BY ",
-          input$field_x,
-          " ORDER BY distinct_count DESC LIMIT 50"
-        )
+        query <- str_interp("
+          SELECT ${input$field_x}, COUNT(DISTINCT ${fieldY}) AS distinct_count
+          FROM simple_payments
+          WHERE approval_store = ?
+          GROUP BY ${input$field_x}
+          ORDER BY distinct_count DESC LIMIT 50
+        ")
         bindParameters <- list(input$approval_store2)
       }
       else if (aggF == 'sum') {
-        query <- paste(
-          "SELECT ",
-          input$field_x,
-          ", SUM(",
-          fieldY,
-          ") AS sum FROM simple_payments WHERE approval_store = ? GROUP BY ",
-          input$field_x,
-          " ORDER BY sum DESC LIMIT 50"
-        )
+        query <- str_interp("
+          SELECT ${input$field_x}, SUM(${fieldY}) AS sum
+          FROM simple_payments
+          WHERE approval_store = ?
+          GROUP BY ${input$field_x}
+          ORDER BY sum DESC LIMIT 50
+        ")
         bindParameters <- list(input$approval_store2)
       }
     }
