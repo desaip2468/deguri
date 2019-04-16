@@ -60,7 +60,9 @@ CREATE TABLE `payments` (
   KEY `index_approval_store_on_payments` (`approval_store`),
   KEY `index_panel_id_on_payments` (`panel_id`),
   KEY `index_company_code_on_payments` (`company_code`),
-  KEY `index_approval_store_panel_id_on_payments` (`approval_store`,`panel_id`)
+  KEY `index_approval_store_panel_id_on_payments` (`approval_store`,`panel_id`),
+  KEY `index_card_payment_type_on_payments` (`card_payment_type`),
+  KEY `index_panel_id_age_on_payments` (`panel_id`,`age`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -121,7 +123,8 @@ CREATE TABLE `simple_payments` (
   KEY `index_approval_store_on_payments` (`approval_store`),
   KEY `index_panel_id_on_payments` (`panel_id`),
   KEY `index_company_code_on_payments` (`company_code`),
-  KEY `index_approval_store_panel_id_on_payments` (`approval_store`,`panel_id`)
+  KEY `index_approval_store_panel_id_on_payments` (`approval_store`,`panel_id`),
+  KEY `index_panel_id_age_on_simple_payments` (`panel_id`,`age`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -134,4 +137,4 @@ CREATE TABLE `simple_payments` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2019-04-13 11:11:37
+-- Dump completed on 2019-04-16 16:33:06
