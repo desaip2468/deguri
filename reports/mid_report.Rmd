@@ -1,8 +1,12 @@
 ---
 title: "프로젝트 중간보고서"
-output: html_document
-editor_options: 
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document: default
+editor_options:
   chunk_output_type: console
+mainfont: NanumGothic
 ---
 
 
