@@ -1,3 +1,3 @@
-.txt diff
-.docx diff
-.html diff
+*.txt diff
+*.docx diff
+*.html diff
