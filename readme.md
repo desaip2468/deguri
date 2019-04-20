@@ -1,4 +1,9 @@
-## Desaip - 데이터 사이언스 입문 프로젝트.
+## 데이터 사이언스 입문 프로젝트.
+
+![deguri logo](https://raw.githubusercontent.com/desaip2468/deguri/master/logo.png)
+
+### 팀명
+- **데구리**
 
 ### 주제
 - 고연령층의 간편결제 사용률을 높일 수 있는 방안 제안. 
