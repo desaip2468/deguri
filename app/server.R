@@ -34,10 +34,12 @@ server <- function(input, output) {
         bindParameters <- list(input$gender, input$approval_store)
       }
     }
-    prepare <- dbSendQuery(connection, query)
+    conn <- poolCheckout(connectionPool)
+    prepare <- dbSendQuery(conn, query)
     if (length(bindParameters) != 0) dbBind(prepare, bindParameters)
     result <- dbFetch(prepare)
     dbClearResult(prepare)
+    poolReturn(conn)
 
     # Sort by count
     result$panel_id <- factor(result$panel_id, levels = result$panel_id[order(as.integer(-result$panel_id_count))])
@@ -67,7 +69,7 @@ server <- function(input, output) {
           FROM simple_payments WHERE approval_store IN (\"${availableApprovalStores}\")
           GROUP BY ${input$field_x} ORDER BY distinct_count DESC LIMIT 30
         ")
-        preQueryResult <- dbGetQuery(connection, preQuery)
+        preQueryResult <- dbGetQuery(connectionPool, preQuery)
         fieldXLimits <- paste(as.vector(t(preQueryResult[input$field_x])), collapse = '", "')
 
         query <- str_interp("
@@ -116,10 +118,14 @@ server <- function(input, output) {
           GROUP BY ${input$field_x} ORDER BY distinct_count DESC LIMIT 30
         ")
         preQueryBindParameters <- list(input$approval_store2)
-        preQueryPrepare <- dbSendQuery(connection, preQuery)
+
+        conn <- poolCheckout(connectionPool)
+        preQueryPrepare <- dbSendQuery(conn, preQuery)
         dbBind(preQueryPrepare, preQueryBindParameters)
         preQueryResult <- dbFetch(preQueryPrepare)
         dbClearResult(preQueryPrepare)
+        poolReturn(conn)
+
         fieldXLimits <- paste(as.vector(t(preQueryResult[input$field_x])), collapse = '", "')
 
         query <- str_interp("
@@ -160,10 +166,13 @@ server <- function(input, output) {
         bindParameters <- list(input$approval_store2)
       }
     }
-    prepare <- dbSendQuery(connection, query)
+
+    conn <- poolCheckout(connectionPool)
+    prepare <- dbSendQuery(conn, query)
     if (length(bindParameters) != 0) dbBind(prepare, bindParameters)
     result <- dbFetch(prepare)
     dbClearResult(prepare)
+    poolReturn(conn)
 
     if (aggF == 'count') {
       # Integer conversion, sorting

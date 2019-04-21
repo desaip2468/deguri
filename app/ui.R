@@ -1,7 +1,7 @@
 library(shiny)
 library(shinydashboard)
 
-simplePaymentsFieldDescription <- dbGetQuery(connection, 'DESCRIBE simple_payments')
+simplePaymentsFieldDescription <- dbGetQuery(connectionPool, 'DESCRIBE simple_payments')
 integerFields <- simplePaymentsFieldDescription[grepl('int', simplePaymentsFieldDescription$Type),]$Field
 allFieldsWithAgg <- c(
   paste(simplePaymentsFieldDescription$Field, '- count'),
