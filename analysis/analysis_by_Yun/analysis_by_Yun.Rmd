@@ -1,0 +1,171 @@
+---
+Title: mbrain EDA
+author: Jungha
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. 연령별 간편결제 사용 현황 
+```{r}
+
+#library(tidyverse)
+all<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/payments_ppdb_app_used.csv", encoding="CP949")
+View(all[1,])
+
+all<-all %>% mutate(age_class=ifelse(age<20,'10대',ifelse(age<30,'20대',ifelse(age<40,'30대',ifelse(age<50,'40대',ifelse(age<60,'50대', '60대')))))) 
+tot_num<-all %>% group_by(age_class) %>% count()
+smartpay_num<-all %>% filter(approval_type_LT01_count!=0)  %>% group_by(age_class) %>% count()
+num<-left_join(smartpay_num,tot_num,by='age_class')
+num<-num %>% mutate(usage_per=n.x/n.y*100)
+num %>% ggplot(aes(x=age_class,y=usage_per)) + geom_col(fill='lightblue') + geom_text(aes(label=paste(round(usage_per),"%"),vjust=1.5))
+
+```
+
+
+2. 간편결제 사용자 구분 
+기준: 간편결제사용액 4달치
+방법: 군집분석
+
+```{r}
+
+#preparing data
+#install.packages("caret")
+#library(caret)
+#library(tidyverse)
+
+data<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/5060data.csv", encoding="CP949")
+
+nonuser<-data %>% filter(approval_type_LT01_count==0)
+user<-data %>% filter(approval_type_LT01_count>0)
+  #nrow(user): 501
+
+#EDA to see outliers 
+#boxplot
+user %>% ggplot(aes(x=1,y=price_sum_by_by_approval_type_LT01))+ geom_boxplot()+coord_flip()
+# => 3개의 매우 큰 이상치가 있음을 알 수 있다.
+
+# 3개의 이상치를 제거한 df를 만들자.
+outliers<-sort(user$price_sum_by_by_approval_type_LT01, decreasing=T)[1:3]
+  #outliers
+out_user<-user %>% filter(price_sum_by_by_approval_type_LT01 %in% outliers)
+  #nrow(out_user): 3
+user<-user %>% filter(!price_sum_by_by_approval_type_LT01 %in% outliers)
+  #nrow(user): 498
+
+#군집개수(k) 정하기
+# Elbow method
+pkgs <- c("factoextra",  "NbClust")
+  #install.packages(pkgs)
+library(factoextra)
+library(NbClust)
+
+st<-scale(user$price_sum_by_by_approval_type_LT01)
+user_price<-as.data.frame(st)
+  #user$price_sum_by_by_approval_type_LT01)
+fviz_nbclust(user_price, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+# => 군집개수는 3개 또는 4개가 적합하다.  
+
+#k-means clustering, k=2 (only easypay user)
+kmeansprice<-kmeans(st, centers=2, iter.max=10000)
+kmeansprice$centers
+table(kmeansprice$cluster)
+user$cluster<-kmeansprice$cluster
+  #outlier와 합칠지 여부: user_all<-union(user,user_new)
+
+# visualization (**3개 이상치 미포함)
+user$cluster<-as.factor(user$cluster)
+user %>% ggplot(aes(x=panel_id,y=price_sum_by_by_approval_type_LT01,color=cluster))+geom_point()
+
+
+#k-means clustering, k=3 (only easypay user)
+kmeansprice<-kmeans(st, centers=3, iter.max=10000)
+kmeansprice$centers
+table(kmeansprice$cluster)
+user$cluster<-kmeansprice$cluster
+  #outlier와 합칠지 여부: user_all<-union(user,user_new)
+
+# visualization (**3개 이상치 미포함)
+user$cluster<-as.factor(user$cluster)
+user %>% ggplot(aes(x=panel_id,y=price_sum_by_by_approval_type_LT01,color=cluster))+geom_point()
+
+#k-means clustering, k=4 (only easypay user)
+kmeansprice<-kmeans(st, centers=4, iter.max=10000)
+kmeansprice$centers
+table(kmeansprice$cluster)
+user$cluster<-kmeansprice$cluster
+  #outlier와 합칠지 여부: user_all<-union(user,user_new)
+
+# visualization (**3개 이상치 미포함)
+user$cluster<-as.factor(user$cluster)
+user %>% ggplot(aes(x=panel_id,y=price_sum_by_by_approval_type_LT01,color=cluster))+geom_point()
+
+#경계값
+user %>% group_by(cluster) %>%
+  summarise(min=min(price_sum_by_by_approval_type_LT01),
+            max=max(price_sum_by_by_approval_type_LT01))
+
+#cluster를 factor에서 숫자로변환
+user$cluster<-as.numeric(user$cluster)
+
+
+# nonuser, outlier 에 cluster 지정
+nonuser$cluster<-0
+out_user$cluster<-5
+
+#dataframe 조인
+user.nonuser<-union(user,nonuser)
+user.outlier<-union(user,out_user)
+user.all<-union(user.nonuser,out_user)
+
+
+
+#csv 파일로 저장 
+
+# write.csv(user,file="C:/Users/JunghaYun/desaip/deguri/analysis/5060_useronly_cluster.csv",row.names=FALSE)
+# 
+# write.csv(user.outlier,file="C:/Users/JunghaYun/desaip/deguri/analysis/5060_user&outlier_cluster.csv",row.names=FALSE)
+# 
+# write.csv(user.nonuser,file="C:/Users/JunghaYun/desaip/deguri/analysis/5060_user&nonuser_cluster.csv",row.names=FALSE)
+# 
+# write.csv(user.all,file="C:/Users/JunghaYun/desaip/deguri/analysis/5060_userall_cluster.csv",row.names=FALSE)
+
+```
+
+군집분석된 새파일로 분석 시작.(ing)
+
+```{r}
+
+old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_userall_cluster.csv")
+# old$cluster<-as.factor(old$cluster)
+# old %>% group_by(cluster) %>% summarise(age=mean(age),gender=mean(gender))
+# old %>% select(starts_with("approval_type_"))
+
+
+```
+
+
+
+2. 간편결제 사용자 구분 
+기준: 간편결제 사용빈도
+
+```{r}
+
+df<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/5060data.csv", encoding="CP949")
+
+#library(tidyverse)
+
+df_user<-df%>%filter(approval_type_LT01_count!=0)
+
+quantile(df_user$approval_type_LT01_count)
+df_user%>% ggplot(aes(x=1,y=approval_type_LT01_count))+geom_boxplot()+coord_flip()
+
+table(df_user$approval_type_LT01_count)
+
+```
+
