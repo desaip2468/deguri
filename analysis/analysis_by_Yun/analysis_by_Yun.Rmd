@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 1. 연령별 간편결제 사용 현황 
 ```{r}
 
-#library(tidyverse)
+library(tidyverse)
 all<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/payments_ppdb_app_used.csv", encoding="CP949")
 View(all[1,])
 
@@ -141,10 +141,169 @@ user.all<-union(user.nonuser,out_user)
 
 ```{r}
 
-old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_userall_cluster.csv")
-# old$cluster<-as.factor(old$cluster)
-# old %>% group_by(cluster) %>% summarise(age=mean(age),gender=mean(gender))
-# old %>% select(starts_with("approval_type_"))
+library(tidyverse)
+old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_userall_cluster_revised.csv")
+old$cluster<-as.factor(old$cluster)
+table(old$cluster)
+
+old %>% group_by(cluster) %>%  summarise(age=mean(age),gender=mean(gender))
+##나이 적을수록, 남자일수록 heavy user
+
+old %>% select(area_name1) %>% table()   
+## 5060 패널은 서울>경기도>부산 거주
+  
+#old %>% select(cluster,area_name1)%>% group_by(cluster) %>% summarise(n()) 
+
+area<-table(old$cluster,old$area_name1)
+area <-as.data.frame.matrix(area)
+area %>% select(서울특별시,경기도,부산광역시)
+area_p<-round(prop.table(table(old$cluster,old$area_name1),1)*100)
+area_p
+area_p<-as.data.frame.matrix(area_p)
+area_p %>% select(서울특별시,경기도,부산광역시) 
+##각 군집에서 서울과 경기도에 거주하는 비율 유사
+
+#old %>% select(cluster,area_name1)%>%table() %>% prop.table(1)*100 %>% floor()
+
+  
+pay_type<-old %>% select(starts_with("approval_type_"),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+#View(pay_type)
+
+pay_type1<-pay_type %>% select( cluster,approval_type_LA_count,approval_type_LT01_count)
+pay_type1
+##군집별 LA count는 비슷, LT01 count는 증가
+
+  
+pay_sum<-old %>% select(starts_with("price_sum"),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T)))) 
+#View(pay_sum)
+
+pay_sum1<-pay_sum %>% select( cluster,price_sum,contains("LA"),contains("LT01"))
+pay_sum1
+##상위 군집일수록 결재액 큼
+
+category<-old %>% select(cluster,starts_with("category_code")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+#View(category)
+criteria<-category%>%select(-cluster)
+high_category<-criteria[,colSums(criteria)>100]
+#high_category
+high_category%>%colnames()
+##기타, 온라인쇼핑몰, 식비/외식, 대형마트
+
+brand<-old %>% select(cluster,starts_with("category_group")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+#View(category)
+crit<-brand%>%select(-cluster)
+high_brand<-crit[,colSums(crit)>25]
+high_brand
+high_brand%>%colnames()
+#1:CU, 12:이마트, 16: 하나로 마트 
+high_brand2<-crit[,colMeans(crit)>4]
+high_brand2
+high_brand2%>%colnames()
+#3:GS25
+
+##군집5의 경우 대형마트, 군집 3,4의 경우 편의점 많이 사용 -> 타겟팅 가능
+
+app<-old %>% select(cluster,ends_with("usagetime")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+View(app)
+crite<-app%>%select(-cluster)
+high_app<-crite[,colSums(crite)>1000000]
+#View(high_app)
+high_app%>%colnames()
+
+high_app<-crite[,colSums(crite)>100000]
+#View(high_app)
+high_app%>%colnames()
+
+##아래는 simplepay_price_app의 관계보는 과정 
+user_exp<-old%>%filter(cluster!=0 & cluster!=5 & 간편결제_usagetime<500000 & 간편결제_usagetime>0)
+
+noout_user_exp <- user_exp %>% 
+  filter(price_sum_by_by_approval_type_LT01<=
+           boxplot(user_exp$price_sum_by_by_approval_type_LT01)$stats[5,1]) %>% filter(간편결제_usagetime<=
+           boxplot(user_exp$간편결제_usagetime)$stats[5,1]) %>%
+    select(price_sum_by_by_approval_type_LT01,간편결제_usagetime)
+
+noout_user_exp %>% ggplot(mapping=aes(x=price_sum_by_by_approval_type_LT01,y=간편결제_usagetime))+geom_point()+geom_smooth()
+
+summary(lm(noout_user_exp$간편결제_usagetime~noout_user_exp$price_sum_by_by_approval_type_LT01),data=noout_user_exp)
+##F-test로 x변수 유의, R^2(설명력)은 작게나옴
+
+##아래는 x와 y sqrt변환 
+noout_user_exp %>% ggplot(mapping=aes(x=sqrt(price_sum_by_by_approval_type_LT01),y=sqrt(간편결제_usagetime)))+geom_point()+geom_smooth()
+
+summary(lm(sqrt(noout_user_exp$간편결제_usagetime)~sqrt(noout_user_exp$price_sum_by_by_approval_type_LT01)),data=noout_user_exp)
+#그래프는 더 선형적으로 보이지만 lm은 앞선 결과와 비슷 
+
+
+old %>% select(Y0001,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+
+old %>% select(cluster,Y0001) %>%table()
+round(prop.table(table(old$cluster,old$Y0001),1)*100)
+
+family_prop<-as.matrix(round(prop.table(table(old$cluster,old$Y0001),1)*100))
+family_prop[,1]+family_prop[,2]
+apply(family_prop[,3:5],1,sum)
+#old는 평균적으로 핵가족(3,4인) 형태, 상위군집(3,4,5)은 대가족>>1,2인가구 -> 자녀와 같이 살수록 간편결제 이용 많음?
+
+old %>% select(Y0008,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+#가구 평균연간소득 5천 ~ 7천(소득 발설하기 싫은 심리 반영?)
+
+round(prop.table(table(old$cluster,old$Y0009),1)*100)
+#군집 3,4 아파트거주 다수 
+
+round(prop.table(table(old$cluster,old$Y0010),1)*100)
+#자가: 4,5군집>2,3군집>1군집 -> 재산척도 
+
+round(prop.table(table(old$cluster,old$H0008),1)*100)
+
+round(prop.table(table(old$cluster,old$H0009),1)*100)
+#1년간 국제선 탑승 무 3<2<1군집순 
+
+old %>% select(H0010,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+#통근자 비율 1<2<3<4 군집 
+
+old %>% select(H0022,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+#현재 자가용 운전비율 1<2<3<4<5 군집 
+
+old %>% select(I0011,I0012,I0013,I0014,I0025
+,I0026,I0027
+,I0028
+,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+# 모바일쇼핑 비율: 0군집<이외군집  (인터넷쇼핑은 차이없음)
+#상위 군집일수록 해외직구 비율 높음  
+
+round(prop.table(table(old$cluster,old$J0001),1)*100)
+round(prop.table(table(old$cluster,old$J0003),1)*100)
+#인터넷 하루이용시간 군집간 전반적으로 비슷 (4,5군집제외)
+
+round(prop.table(table(old$cluster,old$J0002),1)*100)
+round(prop.table(table(old$cluster,old$J0004),1)*100)
+#스마트폰 하루이용시간 군집간 전반적으로 비슷 (4,5군집 제외 )
+
+old %>% select(J0078,cluster) %>% group_by(cluster) %>% summarise_all(funs((mean(.)))) 
+#스마트폰 보유 여부 (거의 1)
+
+old %>% select(J0079,J0080,J0081,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+#대체적으로 상위 군집일수록 삼성폰 가짐 
+
+round(prop.table(table(old$cluster,old$L0031),1)*100)
+#상위 군집일수록 뉴스가 주시청장르(1순위)가 아님. 이를 예능(4군집)과 드라마(3군집)가 대체. -> 여흥거리에 높은 관심 / 트렌디함?
+
+old %>% select(paste0('M000',1:8),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+#온라인/모바일결제 
+#상위 군집일수록 각 간편결제 이용률 높아짐 
+#특히 삼성페이 이용율 상위군집일수록 높음 (2~5군집 60%이상)
+#특이점: 1군집-핸드폰결제 이용율 42%, 4군집-페이코 이용률 54%
+
+old %>% select(M0009,paste0('M00',10:16),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+#오프라인결제 
+#상위 군집일수록 각 신용카드모바일결제 이용률 높아지긴 하지만 별로 차이 안남
+#마찬가지로 삼성페이 이용율 상위군집일수록 높음 (3~5군집 60%이상)
+#4군집 페이코 이용률 23%
+
+finanace<-old %>% select(paste0('M00',17:27),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+View(finanace)
+#지난 1년간 금융생활은 4군집이 가장활발, 하지만 전반적으로 저조 
 
 
 ```
