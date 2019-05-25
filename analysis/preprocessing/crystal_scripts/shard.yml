@@ -1,0 +1,6 @@
+name: shards
+version: 0.1.0
+
+dependencies:
+  mysql:
+    github: crystal-lang/crystal-mysql

@@ -4,16 +4,16 @@ library(unbalanced)
 library(testit)
 library(glmnet)
 
-all_data <- read.csv('analysis/data/5060_user_and_nonuser_cluster_utf8.csv')
+all_data <- read.csv('~/Downloads/payments_ppdb_app_category_code_aggregated.csv')
 
 # Ensure that we are working with right data
 assert(class(all_data) == 'data.frame')
 assert(nrow(all_data) == 1424)
 
-filtered_all_data <- all_data %>% filter(cluster <= 3) %>% filter(price_sum_by_by_approval_type_LT01 > 0)
+filtered_all_data <- all_data %>% filter(price_sum_by_by_approval_type_LT01 > 0)
 filtered_all_data <- filtered_all_data %>% 
   select(-matches("^category_group|^approval_type")) %>%
-  select(matches("count$|^price_sum_by_by_approval_type_LT01"))
+  select(matches("_\\d{1,2}_count$|^price_sum_by_by_approval_type_LT01"))
 
 # Alias
 fdf <- filtered_all_data
