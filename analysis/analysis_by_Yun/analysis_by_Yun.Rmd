@@ -27,7 +27,9 @@ num %>% ggplot(aes(x=age_class,y=usage_per)) + geom_col(fill='lightblue') + geom
 
 
 2. 간편결제 사용자 구분 
-기준: 간편결제사용액 4달치
+기준: 간편결제사용액(결제취소액인 LT02제외하고 결제액인 LT01만 사용) 4달치
+  -4달 전 간편결제 사용자는 최근 이용자가 아니므로 제외
+  -해석의 용이성을 위해 결제취소액을 제외한 결제액만 분석에 사용 
 방법: 군집분석
 
 ```{r}
@@ -143,11 +145,28 @@ user.all<-union(user.nonuser,out_user)
 
 library(tidyverse)
 old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_userall_cluster_revised.csv")
+user<-old %>% filter(cluster>0)
+nonuser<-old %>% filter(cluster==0)
+
 old$cluster<-as.factor(old$cluster)
 table(old$cluster)
+old %>% select(cluster) %>% filter(cluster>0)
 
 old %>% group_by(cluster) %>%  summarise(age=mean(age),gender=mean(gender))
 ##나이 적을수록, 남자일수록 heavy user
+
+analy<-aov(age~cluster,data=user)
+summary(analy)
+#일원배치 분산분석
+bartlett.test(age~cluster,data=user)
+#오차의 등분산성 가정 만족안함 
+
+analy<-aov(gender~cluster,data=user)
+summary(analy)
+#일원배치 분산분석
+bartlett.test(age~cluster,data=user)
+#오차의 등분산성 가정 만족안함 
+
 
 old %>% select(area_name1) %>% table()   
 ## 5060 패널은 서울>경기도>부산 거주
@@ -172,6 +191,7 @@ pay_type<-old %>% select(starts_with("approval_type_"),cluster) %>% group_by(clu
 pay_type1<-pay_type %>% select( cluster,approval_type_LA_count,approval_type_LT01_count)
 pay_type1
 ##군집별 LA count는 비슷, LT01 count는 증가
+#heavy user~light user분류가 의미있음을 다시한번 알수있음 
 
   
 pay_sum<-old %>% select(starts_with("price_sum"),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T)))) 
