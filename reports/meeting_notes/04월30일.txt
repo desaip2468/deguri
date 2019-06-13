@@ -1,0 +1,20 @@
+﻿04.30 회의록
+
+<데이터 정제기준>
+Key 값: panel_id
+ 
+[PAYMENT] (버릴 컬럼)
+Sms_id / user_id / user_smsdate_price / latitude / longitude / sms_registration_month, date, time / sms_registration_timestamp / timestpamp / 
+
+[PPDB] (살릴컬럼)
+[Y.가구]: 동거자수, 연소득(가족전체), 주택형태, 주택보유형태(자산예측목적)
+[M.금융]: 지난 1개월 간 이용한 경험이 있는 지불/결제 방식(온라인/모바일, 오프라인), 지난 1년간 귀하께서 경험한 금융/재테크 관련 활동(보험, 예적금 및 투자, 대출, 기타(기부))
+F. Health
+I. Shopping
+J. Digital Life
+K. Hobby/Leisure
+L. Media
+
+[APP] (살릴컬럼)
+Refine_apptime  - 모두(주차 제외)
+Refine_categorytime_mme – 모두(reg_cnt제외) 
