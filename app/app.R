@@ -197,6 +197,8 @@ ui <- dashboardPage(
         plotOutput("presentation_tab_4_2_table_1", width = "600px", height = "200px"),
         br(),
         h4("✓ [온라인 쇼핑몰, 식비/외식, 대형마트, 편의점]은 간편결제금액 상위 가맹점 카테고리에 해당" ),
+        imageOutput("presentation_tab_4_2_image", height = 'auto'),
+        br(),
         h4("✓ 군집분석 결과, 간편결제 이용률이 증가할수록 위 가맹점들의 평균 결제 빈도가 증가한다."),
         h4("✓ 로지스틱분석 결과, [온라인 쇼핑몰, 편의점, 문화] 가맹점 카테고리가 간편결제 이용여부에 유의한 영향을 미침"), 
         br(),
@@ -436,6 +438,13 @@ server <- function(input, output) {
     formula <- paste0(colname, '_count ~ cluster') %>% as.formula
     paste("Kruskal Test p-value: ", kruskal.test( formula, data = user.nonuser )$p.value)
   })
+
+  output$presentation_tab_4_2_image <- renderImage({
+    list(
+      src = "images/23p.png",
+      contentType = "image/png"
+    )
+  }, deleteFile = FALSE)
 
   output$presentation_tab_4_3_table_1 <- renderPlot({
     table <- round(prop.table(table(user.nonuser$cluster,user.nonuser$Y0001),1)*100)
