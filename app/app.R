@@ -64,7 +64,7 @@ ui <- dashboardPage(
         tabName = "presentation_tab_1_1",
         h2("1. 문제점 도출"),
         h3("5060 세대의 낮은 간편결제 이용률"),
-        plotOutput("presentation_tab_1_1_plot"),
+        imageOutput("presentation_tab_1_1_image"),
         br(), # Line break
         h4("✓ 네이버페이, 카카오페이등의뚜렷한강자가있는2030 세대와는달리, 5060 세대에서는뚜렷한강세를보이는간편결제
 회사가없음"),
@@ -75,7 +75,6 @@ ui <- dashboardPage(
         h2("2. 데이터 탐색/전처리"),
         h3("다루기 쉬운 데이터로 만들기"),
         imageOutput("presentation_tab_2_1_image"),
-        br(), # Line break
         h4("✓ 정보가각결제건마다나열되어있어패널들의 소비행태를한눈에보기가어려웠음"),
         h4("✓ 따라서 ‘panel_id’를 기준으로 데이터를 aggregate 시킴"),
         h4("✓ 그결과행의수가약3만3천여개로줄어들었고, 각패널들의 소비행태를분석하기 좋은형태로변하였음")
@@ -83,9 +82,8 @@ ui <- dashboardPage(
       tabItem(
         tabName = "presentation_tab_2_2",
         h2("2. 데이터 탐색/전처리"),
-        h3("다루기 쉬운 데이터로 만들기"),
-        plotOutput("presentation_tab_2_2_plot"),
-        br(), # Line break
+        h3("타겟 변수와 설명 변수 선택"),
+        imageOutput("presentation_tab_2_2_image"),
         h4("✓ 우리의 목적은 5060 세대의 간편결제 이용을 촉진하는 것이므로, 간편결제 이용액을 타겟변수로 설정함"),
         h4("✓ 패널 별 간편결제 이용 승인 금액을 나타내는 컬럼을 만들어 타겟변수로 사용함"),
         h4("✓ 그 결과, 행의 수가 약 3만3천여 개로 줄어들었고, 각 패널들의 소비 행태를 분석하기 좋은 형태로 변하였음")
@@ -110,15 +108,11 @@ ui <- dashboardPage(
         tabName = "presentation_tab_2_4",
         h2("2. 데이터 탐색/전처리"),
         h3("설명변수 전처리"),
-        #plotOutput("presentation_tab_2_4_plot"),
-        br(), # Line break
+        imageOutput("presentation_tab_2_4_image"),
         h4("✓ 5060 세대의 간편 결제 이용자가 절반에도 미치지 못하였기 때문에 , 간편 결제 이용액이라는 타겟 변수는
 간편결제 이용자보다 미이용자가 훨씬 더 많은 비대칭 분포를 이루고 있었음"),
         h4("✓ 간편 결제 이용자의 비율이 적으므로 해당 Class 의 민감도가 급격히 낮아지는 문제가 발생할 수 있음"),
         h4("✓ 따라서 SMOTE 방법을 이용해 간편 결제 이용자의 비율을 미이용자와 비슷하게 만듦"),
-        br(), # Line break,
-        
-        #plotOutput("presentation_tab_2_4_plot"),
         br(), # Line break
         h4("✓ 설정한 설명변수 컬럼에 0이 매우 많았고, 비슷한 의미를 가지는 컬럼들이 다수 존재하였음"),
         h4("✓ 따라서 비슷한 의미를 지니는 컬럼들을 하나의 컬럼으로 합쳐서 0의 개수를 줄이고 다중공선성 문제를 해결함")
@@ -241,9 +235,23 @@ server <- function(input, output) {
     plot('mpg ~ cyl' %>% as.formula, data = mtcars)
   })
 
+  output$presentation_tab_1_1_image <- renderImage({
+    list(
+      src = "images/4p.png",
+      contentType = "image/png"
+    )
+  }, deleteFile = FALSE)
+
   output$presentation_tab_2_1_image <- renderImage({
     list(
       src = "images/7p.png",
+      contentType = "image/png"
+    )
+  }, deleteFile = FALSE)
+
+  output$presentation_tab_2_2_image <- renderImage({
+    list(
+      src = "images/8p.png",
       contentType = "image/png"
     )
   }, deleteFile = FALSE)
@@ -274,6 +282,13 @@ server <- function(input, output) {
     
     usagetable
   })
+
+  output$presentation_tab_2_4_image <- renderImage({
+    list(
+      src = "images/11p.png",
+      contentType = "image/png"
+    )
+  }, deleteFile = FALSE)
   
   output$presentation_tab_3_1_plot <- renderPlot({
     old<-csvData%>%filter(csvData$age>=50)
