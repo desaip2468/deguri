@@ -74,7 +74,7 @@ ui <- dashboardPage(
         tabName = "presentation_tab_2_1",
         h2("2. 데이터 탐색/전처리"),
         h3("다루기 쉬운 데이터로 만들기"),
-        plotOutput("presentation_tab_2_1_plot"),
+        imageOutput("presentation_tab_2_1_image"),
         br(), # Line break
         h4("✓ 정보가각결제건마다나열되어있어패널들의 소비행태를한눈에보기가어려웠음"),
         h4("✓ 따라서 ‘panel_id’를 기준으로 데이터를 aggregate 시킴"),
@@ -174,7 +174,6 @@ ui <- dashboardPage(
         h3("Closed Sweepstakes Strategy(소비자현상)"),
         h4("일명 '스마트폰 5060' 마케팅 : 통신사와 제휴를 맺은 후, 열흘 동안 스마트폰을 50시간 이상 이용한 고객들을 대상으로 random 추첨을 통해 1등 고객에 당첨되면 간편결제시 경품을 받는 프로모션 실시")
       ),
-      
       tabItem(
         tabName = "presentation_tab_4_2",
         h2("4. 분석 결과 및 전략"),
@@ -241,6 +240,13 @@ server <- function(input, output) {
   output$presentation_tab_1_1_plot <- renderPlot({
     plot('mpg ~ cyl' %>% as.formula, data = mtcars)
   })
+
+  output$presentation_tab_2_1_image <- renderImage({
+    list(
+      src = "images/7p.png",
+      contentType = "image/png"
+    )
+  }, deleteFile = FALSE)
 
   output$presentation_tab_2_3_plot <- renderPlot({
     old<-csvData%>%filter(csvData$age>=50)
