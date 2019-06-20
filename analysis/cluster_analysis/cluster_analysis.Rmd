@@ -1,0 +1,565 @@
+---
+Title: cluster_analysis
+author: Jungha
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##  1. 간편결제 사용자 구분 
+
+#### 기준: 간편결제사용액 4달치
+
+  - 4달 전 간편결제 사용자는 최근 이용자가 아니므로 분석에서 제외되어도 큰 문제가 되지 않는다고 보았습니다.
+  - 해석의 용이성을 위해 결제취소액인 LT02제외하고 결제액인 LT01만 사용
+  - 먼저 간편결제 사용액을 기준으로 금액이 0이상인 user와 0인 nonuser를 분류했습니다. 그 후 user 사이에서도 유사한 간편결제금액을 사용한 그룹끼리 나누기 위해 군집분석을 실시했습니다.
+
+#### 방법: K-Medoids clustering
+
+  - k-medoid Algorism (k-중앙자 알고리즘) 
+  
+  클러스터링은 데이터 객체 집합을 유사성과 비슷한 정도에 따라 다수의 그룹으로 쪼개는 작업을 말합니다. 유사성과 비슷한 정도는 대상을 정의하는 속성 값을 통해 계산하며 주로 거리 측정법을 사용합니다. 흔히 사용하는 클러스터링 기법인 k-means는 평균값을 구하는 연산을 수행하기 때문에 잡음이나 이상치(아웃라이어)에 민감합니다. 저희 팀은 이러한 단점을 해결하기 위해 k-medoids 알고리즘을 사용했습니다. 클러스터의 대표값으로 오브젝트의 중심점을 구하는 k-means와 달리, k-medoids는 실제 오브젝트 중에서 클러스터를 대표할 수 있는 대표 오브젝트를 뽑습니다. 대표로 뽑히지 않은 나머지 오브젝트는 가장 가까운 대표 오브젝트를 따라 해당 클러스터에 배정됩니다. 그후 임의적으로 비대표 객체를 선택하여 대표객체와 비대표객체를 교환하였을 때 발생하는 총비용을 계산합니다. 만약 총비용이 0보다 작다면 이 둘을 바꿔 새로운 k 대표객체의 집합을 형성합니다. 이 과정을 대표객체와 비대표객체가 더 이상 바뀌지 않을 때까지 반복합니다. 이처럼 k-means의 경우 평균을 대표값으로 가져가기 때문에 분산을 기준으로 알고리즘이 진행되는것에 반해 k-medoid는 중앙값을 대표값으로 가져가므로 절대오차를 기준으로 알고리즘이 진행됩니다. 
+저희는 k-medoid 알고리즘을 가장 일반적으로 실현화한 것중 대표적인 PAM(Partitoning Around Medoid) 알고리즘을 사용하였습니다. 사후적검증방법인 실루엣(silhouette)기법을 통해 자동으로 최적의 군집개수인 k를 찾아주는 KPAM을 사용해 간편결제 lightuser, heavyuser 2개의 군집으로 나누었습니다.
+
+
+#### 5060 그룹핑 결과: 
+
+  - 군집0: nonuser, 군집1: lightuser, 군집2: heavyuser
+ 
+
+```{r}
+
+#Sys.getlocale()
+
+#preparing data
+#library(caret)
+library(tidyverse)
+
+data<-read.csv("C:/Users/JunghaYun/desaip/deguri_new/deguri/analysis/data/payments_ppdb_app_category_code_aggregated_x_cp949.csv", encoding = "CP949")
+#data<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/5060data.csv", encoding="CP949")
+
+data<-data %>% filter(age>=50)
+
+nonuser<-data %>% filter(price_sum_by_by_approval_type_LT01==0)
+user<-data %>% filter(price_sum_by_by_approval_type_LT01>0)
+
+#EDA to see outliers 
+#boxplot
+user %>% ggplot(aes(x=1,y=price_sum_by_by_approval_type_LT01))+ geom_boxplot()+coord_flip()
+# => 3개의 매우 큰 이상치가 있음을 알 수 있다. -> k-means clustering대신 k-medoids기법 사용 
+
+# nonuser<-data %>% filter(approval_type_LT01_count==0)
+# user<-data %>% filter(approval_type_LT01_count>0)
+#   #nrow(user): 501
+
+#필요패키지 다운
+#install.packages(c("cluster", "factoextra"))
+#install.packages("fpc")
+library(cluster)
+library(factoextra)
+library(fpc)
+
+#K-Medoids clustering (알아서 k개 정해줌, 결과적으로, heavy, light 두 카테고리로 나뉨)
+st<-scale(user$price_sum_by_by_approval_type_LT01)
+pamk(st)
+med<-pamk(st)
+med_core<-med$pamobject
+table(med_core$clustering)
+
+#   0   1   2 
+# 926 425  76 
+
+user$cluster<-med_core$cluster
+
+
+#경계값
+user %>% group_by(cluster) %>%
+  summarise(min=min(price_sum_by_by_approval_type_LT01),
+            max=max(price_sum_by_by_approval_type_LT01))
+
+#cluster를 factor에서 숫자로변환
+user$cluster<-as.numeric(user$cluster)
+
+# nonuser에 cluster 지정
+nonuser$cluster<-0
+
+#dataframe 조인
+user.nonuser<-union(user,nonuser)
+
+#시각화
+user.nonuser$cluster<-as.factor(user.nonuser$cluster)
+user.nonuser %>% ggplot(aes(x=panel_id,y=price_sum_by_by_approval_type_LT01,color=cluster))+geom_point()
+
+#경계값
+user.nonuser %>% group_by(cluster) %>%
+  summarise(min=min(price_sum_by_by_approval_type_LT01),
+            max=max(price_sum_by_by_approval_type_LT01))
+
+#csv 파일로 저장 
+#write.csv(user.nonuser,file="C:/Users/JunghaYun/desaip/deguri/analysis_by_Yun/5060_3cluster.csv",row.names=FALSE)
+
+```
+
+
+## 2. 군집별 비교분석 
+
+#### 방법: 
+
+간편결제사용에 영향을 줄 만한 설명변수들을 뽑아 군집간 비교분석 테이블을 만들었습니다. 그후 설명변수에 따라 군집간 유의미한 차이가 있는지 통계분석을 실시하여 알아보았습니다.
+
+#### 검정기법:
+
+  - Kruskal-Wallis test: **독립된 세 군 이상의 크기를 비교하는 비모수적 방법**, 세 군 모두 각각 정규성을 만족하지 않는 경우 평균을 통해 세 군의 크기 차이를 비교할 수 없을 때 사용, 일종의 순위합 검정법으로 모든 자료들을 한데 모아 크기 순으로 정렬한 다음, 가장 작은 값부터 순위를 매겨 군 별로 순위합을 구한다. 크기의 차이가 없는 집단들이라면 순위합도 비슷할 것이고 진단간 차이가 많이 난다면 순위합도 차이가 날것 이다. 이 과정에서 본래 자료의 고유의 값들은 순위만 남기고 모두 상실되어 통계분석에 작용하지 않으므로, 두 군의 평균과 표준편차는 가설 검정에서 의미를 갖지 않습니다.
+  
+  - Chi-squared test: 카이제곱 검정은 **관찰된 빈도가 기대되는 빈도와 의미있게 다른지**의 여부를 검증하기 위해 사용되는 검증방법입니다. 자료가 빈도로 주어졌을 때, 특히 명목척도 자료의 분석에 이용됩니다. 카이제곱 검정의 독립성 검증은 두 가지 속성(변수)들이 서로 관련이 있는지 없는지, 즉 서로 독립인지 아닌지를 검정합니다.
+  
+   귀무가설 : 두 속성들이 서로 독립이다.
+   대립가설 : 두 속성들이 서로 독립이 아니다. 또는 두 속성들이 서로 종속이다.
+   
+  - Fisher's exact test: 카이제곱 검정의 "각 범주에 포함할 수 있도록 기대되는 빈도인 기대빈도가 5 이상이어야 한다."는 가정이 성립하지 않을시 카이제곱 검정 대신 사용됩니다. 
+
+
+```{r}
+#library(tidyverse)
+#old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_3cluster.csv")
+old<-user.nonuser
+old$cluster<-as.factor(old$cluster)
+table(old$cluster)
+#View(old)
+
+user<-old %>% filter(cluster!=0)
+nrow(user)
+nonuser<-old %>% filter(cluster==0)
+#nrow(nonuser)
+#nrow(nonuser)+nrow(user)
+
+pay_type<-old %>% select(starts_with("approval_type_"),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+#View(pay_type)
+pay_type1<-pay_type %>% select( cluster,approval_type_LA_count,cluster,approval_type_LW_count,approval_type_LD_count,approval_type_FA_count,approval_type_LT01_count)
+#View(pay_type1)
+##군집순으로 모든 결제거래 타입 count 증가
+
+  
+pay_sum<-old %>% select(starts_with("price_sum"),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T)))) 
+pay_sum1<-pay_sum %>% select( cluster,price_sum,contains("LW"),contains("LD"),contains("LA"),contains("LT01"))
+#View(pay_sum1)
+##금융거래총액,LW,LD 2>0>1순 vs LT01,LA 2>1>0순 
+
+
+company<-old %>% select(cluster,starts_with("company_code_PA")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+criterion<-company%>%select(-cluster)
+high_com<-criterion[,colSums(criterion)>1]
+#view(high_com)
+high_com%>%colnames()
+# 군집별 평균 간편결제 빈도 합 순위: 삼성페이>페이코, 나머지는 합이 1미만임 
+# 2군집 4달간 삼성페이 23건, 페이코 약 5건/ 1군집 약 2건, 1건 
+# => 아직 다양한 간편결제가 5060에게 많이 활성화되지 않음
+
+
+old %>% group_by(cluster) %>%  summarise(age=mean(age),gender=mean(gender))
+##나이 적을수록, 남자일수록 heavy user
+kruskal.test( age ~ cluster, data = old)
+# 군집별 연령 차이 있음 
+chisq.test(table(old$cluster,old$gender))
+# 군집과 성별 연관있음 
+
+
+old %>% select(area_name1) %>% table()   
+## 5060 패널은 경기도>서울>부산>인천순 거주
+
+
+  
+#old %>% select(cluster,area_name1)%>% group_by(cluster) %>% summarise(n()) 
+
+area<-table(old$cluster,old$area_name1)
+area <-as.data.frame.matrix(area)
+area %>% select(서울특별시,경기도,부산광역시)
+area_p<-round(prop.table(table(old$cluster,old$area_name1),1)*100)
+area_p
+area_p<-as.data.frame.matrix(area_p)
+area_p %>% select(서울특별시,경기도,부산광역시) 
+##0&1 군집에서 서울과 경기도에 거주하는 비율 유사, 2군집은 경기도 거주 비율 더 높음
+
+old %>% group_by(area_name1)%>%summarise(user_per=round(sum(cluster!=0)/n(),2)*100) %>%arrange(-user_per)
+
+## 지역별 간편결제 이용자수/거주자수
+
+
+#old %>% select(cluster,area_name1)%>%table() %>% prop.table(1)*100 %>% floor()
+ 
+
+category<-old %>% select(cluster,starts_with("category_code")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+#View(category)
+criteria<-category%>%select(-cluster)
+high_category<-criteria[,colSums(criteria)>30]
+high_category%>%colnames()
+#View(high_category)
+##군집별 카테고리별 결제 빈도를 알아본다.
+##기타 > 온라인쇼핑몰 > 식비/외식 > 대형마트 순 
+cate_p<-round(category[,-1]/rowSums(category[,-1]),2)
+high_cate_p<-cate_p[,colSums(cate_p)>0.1]
+high_cate_p
+##온라인 쇼핑몰, 식비/외식이 전체건수에서 각각 약 10%, 8% 차지 
+##기타제외하고 온라인 쇼핑몰이 가장 큰 건수를 차지한다는 것에서 5060의 간편결제 활성화 가능성이 보임  
+
+brand<-old %>% select(cluster,starts_with("category_group")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+crit<-brand%>%select(-cluster)
+high_brand<-crit[,colSums(crit)>9]
+#View(high_brand)
+high_brand%>%colnames()
+##1:CU, 3:GS25 -> 편의점이 그나마 가장 브랜드 코드에서는 높음 
+
+
+app<-old %>% select(cluster,ends_with("usagetime")) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T))))
+#View(app[1:3,])
+crite<-app%>%select(-cluster)
+high_app<-crite[,colSums(crite)>500000]
+high_app
+sig<-high_app%>%select(-돈버는.리워드_usagetime)
+sig
+
+col<-high_app%>%colnames()
+col
+#test<-old %>% select(cluster,col)
+#test
+kruskal.test( 메신저_usagetime ~ cluster, data = old) 
+kruskal.test( 돈버는.리워드_usagetime ~ cluster, data = old) #집단간 차이 없음 
+kruskal.test( 검색포털_usagetime ~ cluster, data = old)
+kruskal.test( 멤버십.할인쿠폰_usagetime ~ cluster, data = old)
+kruskal.test( 동영상.스트리밍_usagetime ~ cluster, data = old)
+kruskal.test( 게임_usagetime ~ cluster, data = old)
+#돈버는 리워드 빼고는 집단간 차이 있음
+
+
+old %>% select(Y0001,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+#old는 평균적으로 핵가족(3,4인) 형태
+
+old %>% select(cluster,Y0001) %>%table()
+round(prop.table(table(old$cluster,old$Y0001),1)*100)
+family_prop<-as.matrix(round(prop.table(table(old$cluster,old$Y0001),1)*100))
+kruskal.test( Y0001 ~ cluster, data = old)
+#군집간 가족원수 차이 있음
+
+with_child<-apply(family_prop[,3:5],1,sum)
+no_child<-100-with_child
+family_size<-as.data.frame(t(rbind(no_child,with_child)))
+family_size
+#heavyuser의 경우 3인가구 이상이 90%이상-> 자녀와 같이 살아서 간편결제에 더 쉽게 접할 수 있어보임 
+
+
+old %>% select(Y0008,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.)))) 
+#가구 평균연간소득 5천 ~ 7천(소득 발설하기 싫은 심리 반영한 것일 수 있음)
+
+round(prop.table(table(old$cluster,old$Y0009),1)*100)
+fisher.test(table(old$cluster,old$Y0009), simulate.p.value=TRUE)
+#군집과 현재 거주 중인 주택의 형태는 연관성이 없다. 
+
+
+round(prop.table(table(old$cluster,old$Y0010),1)*100)
+fisher.test(table(old$cluster,old$Y0010), simulate.p.value=TRUE)
+#1 군집에 비해 2군집에서 월세는 낮고 자가가 높은 것을 보아 heavyuser의 재산이 더 많아 보인다. -> 재산이 많을수록 간편결제 이용 올라감  
+#군집과 현재 거주 중인 주택의 보유 형태는 연관성이 있다. 
+
+
+round(prop.table(table(old$cluster,old$H0008),1)*100)
+round(prop.table(table(old$cluster,old$H0009),1)*100)
+#평균적으로 비행기 탑승횟수 0회: 60%
+#0,1군집은 지난 1년간 국내선/국제선 탑승회수 비슷
+#2군집은 지난 1년간 국내선/국제선 탑승회수 더 많음 -> 여가를 즐기거나 여유있음
+kruskal.test( H0008 ~ cluster, data = old)
+kruskal.test( H0009 ~ cluster, data = old)
+#군집간 국내선 탑승횟수는 차이 없음, 국제선 탑승회수는 차이 있음 
+
+
+old %>% select(H0010,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+#통근자 비율 0<1<2 군집 
+#kruskal.test( H0010 ~ cluster, data = old)
+chisq.test(table(old$cluster,old$H0010))
+#하지만 검정 결과 통근여부와 군집은 연관성이 없다.
+
+
+old %>% select(H0022,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+#"현재 자가용 자가 운전비율" 2군집이 가장 높음  
+chisq.test(table(old$cluster,old$H0022))
+#현재 자가용 자가 운전 여부와 군집은 상관있음
+
+old %>% select(I0025,I0026,I0028,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+chisq.test(table(old$cluster,old$I0025))
+chisq.test(table(old$cluster,old$I0026))
+chisq.test(table(old$cluster,old$I0028))
+# 모바일쇼핑/해외직구 비율: 0<1<2군집  (인터넷쇼핑은 차이없음)
+# 군집과 지난 3개월 간 인터넷 쇼핑 이용 여부는 연관없음
+# 군집과 지난 3개월 간 모바일쇼핑/해외직구 이용 여부는 연관있음 
+
+
+round(prop.table(table(old$cluster,old$J0001),1)*100)
+round(prop.table(table(old$cluster,old$J0003),1)*100)
+kruskal.test( J0001 ~ cluster, data = old)
+kruskal.test( J0003 ~ cluster, data = old)
+#인터넷 하루이용시간 군집간 전반적으로 비슷, 군집간 차이 없음
+
+round(prop.table(table(old$cluster,old$J0002),1)*100)
+round(prop.table(table(old$cluster,old$J0004),1)*100)
+kruskal.test( J0002 ~ cluster, data = old)
+kruskal.test( J0004 ~ cluster, data = old)
+#스마트폰 평일/주말 기준 하루이용시간 0<1,2군집, 군집간 차이 있음 
+
+old %>% select(J0078,cluster) %>% group_by(cluster) %>% summarise_all(funs((mean(.)))) 
+#스마트폰 보유 여부 (거의 1)
+
+old %>% select(J0079,J0080,J0081,cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2))) 
+##**상위 군집일수록 삼성폰 가진 비율 큼 -> 기기의 중요성 
+chisq.test(table(old$cluster,old$J0079))
+#디지털기기) 현재 삼성스마트폰 보유 여부와 군집은 연관 있음
+chisq.test(table(old$cluster,old$J0080))
+#디지털기기) 현재 LG폰 보유 여부와 군집은 연관 있음
+
+
+round(prop.table(table(old$cluster,old$L0031),1)*100)
+fisher.test(table(old$cluster,old$L0031), simulate.p.value=TRUE)
+# TV컨텐츠) 주시청 장르(1순위)와 군집은 연관있음 
+# 2군집은 드라마, 1군집은 스포츠, 예능, 0군집은 뉴스에서 다른 군집 대비 큰 비율을 보임 -> 간편결제 사용자가 미사용자에 비해 여흥거리나 트렌드에 더 높은 관심이 있을 수 있음  
+
+
+finanace<-old %>% select(paste0('M00',17:27),cluster) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+#View(finanace)
+chisq.test(table(old$cluster,old$M0017))
+chisq.test(table(old$cluster,old$M0020))
+chisq.test(table(old$cluster,old$M0022))
+fisher.test(table(old$cluster,old$M0024),simulate.p.value=TRUE)
+chisq.test(table(old$cluster,old$M0025))
+chisq.test(table(old$cluster,old$M0026)) #연관있음 
+#지난 1년간 보험가입, 예적금가입, 펀드가입 등의 전반적인 금융생활은 군집과 연관 없음
+#금융활동) 지난 1년 간 신규 신용 대출 경험 여부만 연관있고 1>2>0 순 
+
+
+```
+
+```{r}
+
+#[PPDB] X 추가 분석
+#old2<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/payments_ppdb_app_g_x_category_code_aggregated_cp949.csv", stringsAsFactors = FALSE)
+
+#old2<-old2 %>% filter(age>=50)
+#old2 %>% summarise(n())
+
+#old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_3cluster.csv",stringsAsFactors = FALSE)
+#old %>% summarise(n())
+
+#old3<-full_join(old,old2, by="panel_id")
+
+# old3<-old
+# old3$cluster<-as.factor(old3$cluster)
+# table(old3$cluster)
+
+#나이(설문조사의 나이와 실제나이가 차이가 남->실제나이로 분석)
+#old %>% filter(X0003>=9) %>% summarise(n())
+#old %>% filter(age>=50) %>% summarise(n())
+#hist(old3$age.x)
+old<-old %>% mutate(age_class=ifelse(age<55,'50대초',ifelse(age<60,'50대후',ifelse(age<65,'60대초',ifelse(age<70,'60대후','70대이상'))))) 
+
+#전체패널 나이
+table(old$age_class)
+#군집별 나이 
+table(old$cluster,old$age_class)
+round(prop.table(table(old$cluster,old$age_class),1)*100)
+
+
+
+#결혼상태
+chisq.test(table(old$cluster,old$X0007))
+#결혼상태와 군집은 연관이 있다. 
+round(prop.table(table(old$cluster,old$X0007),1)*100)
+#2 군집이 기혼 비율이 가장 높음 
+
+
+#학력
+kruskal.test( X0008 ~ cluster, data = old)
+#군집과 학력은 차이가 없다. 
+
+#직업
+fisher.test(table(old$cluster,old$X0009), simulate.p.value=TRUE)
+#직업과 군집은 연관이 있다. 
+round(prop.table(table(old$cluster,old$X0009),1)*100)
+# 아래는 타군집 대비 5%이상 차이나는 것 
+# 2군집에서 공무원 비율(14%) 높음, 서비스/판매직 비율(1%) 낮음, 전업주부 비율(16%) 낮음
+
+```
+
+
+```{r}
+
+#categorycode추가분석
+
+# library(tidyverse)
+# old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_3cluster.csv")
+# old$cluster<-as.factor(old$cluster)
+# table(old$cluster)
+# View(old)
+
+#여행관련 카테고리(여행사, 항공, 호텔/리조트)
+travel<-old %>% select(starts_with("category_code_014"),starts_with("category_code_14")) 
+travel_count<-rowSums(travel)
+cluster<-old$cluster
+df<-data.frame(cluster,travel_count)
+df %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+kruskal.test( travel_count ~ cluster, data = old)
+
+#스포츠관련 카테고리 (스포츠시설/용품, 골프장)
+sport<-old %>% select(starts_with("category_code_013"),starts_with("category_code_13")) 
+sport_count<-rowSums(sport)
+cluster<-old$cluster
+df<-data.frame(cluster,sport_count)
+df %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+kruskal.test( sport_count ~ cluster, data = old)
+
+#문화/취미관련 카테고리 (영화관, pc방, 공연/전시/체험)
+hobby<-old %>% select(starts_with("category_code_0100"), starts_with("category_code_100")) 
+
+hobby_count<-rowSums(hobby)
+cluster<-old$cluster
+df<-data.frame(cluster,hobby_count)
+df %>% group_by(cluster) %>% summarise_all(funs(round(mean(.),2)))
+kruskal.test( hobby_count ~ cluster, data = old)
+
+```
+
+
+```{r}
+
+#PPDB K.취미레저 추가분석
+
+list<-paste0("K00",16:19)
+#type(list)
+list
+
+for (i in list) { 
+  
+  leisure_prop<-as.matrix(round(prop.table(table(old$cluster,old[[i]]),1)*100))
+
+  kruskal.test( Y0001 ~ cluster, data = old) }
+
+
+round(prop.table(table(old$cluster,old$K0016),1)*100)
+round(prop.table(table(old$cluster,old$K0017),1)*100)
+round(prop.table(table(old$cluster,old$K0018),1)*100)
+round(prop.table(table(old$cluster,old$K0019),1)*100)
+
+
+old %>% select(cluster,paste0("K00",16:19)) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T),2)))
+
+old %>% select(cluster,K0005) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T),2)))
+fisher.test(table(old$cluster,old$K0005), simulate.p.value=TRUE)
+
+old %>% select(cluster,paste0("K00",63:65)) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T),2)))
+chisq.test(table(old$cluster,old$K0063))
+fisher.test(table(old$cluster,old$K0063), simulate.p.value=TRUE)
+fisher.test(table(old$cluster,old$K0064), simulate.p.value=TRUE)
+fisher.test(table(old$cluster,old$K0065), simulate.p.value=TRUE)
+
+
+old %>% select(cluster,K0005) %>% group_by(cluster) %>% summarise_all(funs(round(mean(.,na.rm = T),2)))
+fisher.test(table(old$cluster,old$K0005), simulate.p.value=TRUE)
+
+```
+
+
+## 한계와 보안점
+  - 앱사용시간이 매우 긴 시간에 해당하는 outlier들이 보였으므로 사용하지는 않지만 앱을 켜놓고 끄지 않고 경우도 사용시간에 포함된 것처럼 보입니다. 이 경우 앱사용시간이 정확하지 않을 수 있다는 한계를 보입니다. 
+  
+
+## 분석의 의미
+  - 간편결제 사업을 진행하고 있는 정부나 기업이 5060세대가 간편결제를 사용하도록 유인할 수 있는 요인들을 제안합니다.
+
+
+
+#### 참고사항
+
+1. 연령별 간편결제 사용 현황 
+
+```{r}
+
+# library(tidyverse)
+#all<-read.csv("C:/Users/JunghaYun/Desktop/최종데이터/payments_ppdb_app_used.csv", encoding="CP949")
+# View(all[1,])
+
+all<-read.csv("C:/Users/JunghaYun/desaip/deguri_new/deguri/analysis/data/payments_ppdb_app_category_code_aggregated_x_cp949.csv", encoding = "CP949")
+ 
+all<-all %>% mutate(age_class=ifelse(age<20,'10대',ifelse(age<30,'20대',ifelse(age<40,'30대',ifelse(age<50,'40대',ifelse(age<60,'50대', '60대')))))) 
+tot_num<-all %>% group_by(age_class) %>% count()
+smartpay_num<-all %>% filter(approval_type_LT01_count!=0)  %>% group_by(age_class) %>% count()
+num<-left_join(smartpay_num,tot_num,by='age_class')
+num<-num %>% mutate(usage_per=n.x/n.y*100)
+num %>% ggplot(aes(x=age_class,y=usage_per)) + geom_col(fill='lightblue') + geom_text(aes(label=paste(round(usage_per),"%"),vjust=1.5))
+
+```
+
+
+2. 간편결제액의 분포확인
+
+```{r}
+# old<-read.csv("C:/Users/JunghaYun/desaip/deguri/analysis/analysis_by_Yun/5060_3cluster.csv")
+# library(tidyverse)
+# light<-old %>% filter(cluster==1) %>% select(price_sum_by_by_approval_type_LT01)
+# heavy<-old %>% filter(cluster==2) %>% select(price_sum_by_by_approval_type_LT01)
+# light<-as.vector(as.matrix(light))
+# heavy<-as.vector(as.matrix(heavy))
+# usual<-old %>% filter(cluster!=2) %>% select(price_sum_by_by_approval_type_LT01)
+# usual<-as.vector(as.matrix(usual))
+# 
+# #install.packages("goft")
+# library(goft)
+# gamma_test(light)
+# lnorm_test(light)
+# gamma_test(heavy)
+# lnorm_test(heavy)
+# hist(light)
+# hist(heavy)
+# 
+# gamma_test(usual)
+# 
+# 
+# price<-old$price_sum_by_by_approval_type_LT01[old$price_sum_by_by_approval_type_LT01>0]
+# hist(price)
+# bx<-boxplot(price)
+# outliers<-bx$out
+# usual_price<-price[!price %in% bx$out]
+# length(bx$out)
+# table(usual_price)
+# gamma_test(usual_price)
+# 
+# 
+```
+
+
+3. 비교대상: k-means clustering
+
+```{r}
+#user대상 clustering
+st<-scale(user$price_sum_by_by_approval_type_LT01)
+easypay<-as.data.frame(st)
+  #user$price_sum_by_by_approval_type_LT01)
+fviz_nbclust(easypay, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow method")
+# => 군집개수는 4개가 적합하다.  
+#k-means clustering (user대상)
+kmeansprice<-kmeans(st, centers=4, iter.max=10000)
+kmeansprice$centers
+table(kmeansprice$cluster)
+user$cluster<-kmeansprice$cluster
+#cluster를 factor에서 숫자로변환
+user$cluster<-as.numeric(user$cluster)
+# nonuser에 cluster 지정
+nonuser$cluster<-0
+#dataframe 조인
+user.nonuser<-union(user,nonuser)
+#시각화(**3개 이상치 포함)
+user.nonuser$cluster<-as.factor(user.nonuser$cluster)
+user.nonuser %>% ggplot(aes(x=panel_id,y=price_sum_by_by_approval_type_LT01,color=cluster))+geom_point()
+
+```
