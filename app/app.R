@@ -4,7 +4,7 @@
 
 library(shiny)
 library(shinydashboard)
-library(tidyverse)
+library(dplyr)
 
 ## Loading DMwr to balance the unbalanced class
 library(DMwR)
@@ -91,8 +91,9 @@ ui <- dashboardPage(
         h3("5060 세대의 낮은 간편결제 이용률"),
         imageOutput("presentation_tab_1_1_image", height = 'auto'),
         br(),
-        h4("✓ 네이버페이, 카카오페이 등의 뚜렷한 강자가 있는 2030세대와는 달리, 5060세대에서는 뚜렷한 강세를 보이는 간편결제 회사가 없음"),
-        h4("✓ 따라서 5060세대를 공략할 경우, 이 시장에서 상당한 선점 효과를 누릴 수 있을 것이라고 기대됨")
+        h4("✓ 외부 리서치 자료와 엠브레인 자료 모두에서 5060 세대는 다른 연령대에 비해 낮은 간편 결제 이용률을 보임"),
+        h4("✓ 이는 5060 세대가 디지털 금융 환경에 익숙하지 않고, 현재 대부분의 간편 결제 마케팅 전략이 2030 세대를 대상으로 하고 있기 때문임"),
+        h4("✓ 그러나 베이비붐 세대인 5060 세대는 높은 인구 비율과 안정적인 경제력을 바탕으로 간편 결제 시장의 큰 손이 될 잠재력이 있기 때문에 5060 세대를 공략해야 할 필요성이 있음")
       ),
       tabItem(
         tabName = "presentation_tab_2_1",
@@ -119,8 +120,7 @@ ui <- dashboardPage(
         h2("2. 데이터 탐색/전처리"),
         h3("대략적인 소비패턴 파악"),
         plotOutput("presentation_tab_2_3_plot"),
-        h4("✓ 5060 세대의 간편 결제 이용률이 낮고 , 현금이나 신용카드 이용률이 압도적으로 높음"),
-        h4("✓ 간편 결제 이용자의 경우 일부의 Heavy User 와 다수의 Light User 로 구성되어 있는 것으로 보임"),
+        h4("✓ 5060 세대의 간편 결제 이용률이 낮고, 간편 결제 이용자의 경우 일부의 Heavy User 와 다수의 Light User 로 구성되어 있는 것으로 보임"),
         tableOutput("presentation_tab_2_3_table"),
         br(), # Line break
         h4("✓ 5060 세대의 간편 결제 이용자가 절반에도 미치지 못하였기 때문에 , 간편 결제 이용액이라는 타겟 변수는
@@ -159,14 +159,14 @@ ui <- dashboardPage(
         br(), # Line break
         h4("✓ 가맹점 카테고리 코드를 백의 자리 기준으로 합친 새로운 컬럼들을 설명 변수로 놓고, 간편 결제 이용 여부를 타겟 변수로 하는 로
 지스틱 회귀 분석을 수행함"),
-        h4("✓ 전체 가맹점 카테고리 중 일부가 간편 결제 사용 금액에 유의미한 영향을 미쳤으며, Accuracy 가 0.72, 민감도가 0.94, 특이도가
+        h4("✓ 전체 가맹점 카테고리 중 일부가 간편 결제 사용 금액에 유의미한 영향을 미쳤으며, 민감도가 0.94, 특이도가
 0.75 로 준수한 수준이었음"),
         br(), # Line break
         plotOutput("presentation_tab_3_2_plot_2"),
         br(), # Line break
         h4("✓ 구글 카테고리를 기준으로 하여 각 카테고리 별로 앱 사용 시간을 설명 변수로 하고 간편 결제 이용 여부를 타겟 변수로 하는
 로지스틱 회귀 분석을 수행함"),
-        h4("✓ 전체 가맹점 카테고리 중 일부가 간편 결제 사용 금액에 유의미한 영향을 미쳤으며, Accuracy 가 0.72, 민감도가 0.80, 특이도가
+        h4("✓ 전체 가맹점 카테고리 중 일부가 간편 결제 사용 금액에 유의미한 영향을 미쳤으며, 민감도가 0.80, 특이도가
 0.43 으로 특이도를 제외한 결과 값은 준수한 수준이었음")
       ),
       tabItem(
@@ -187,18 +187,17 @@ ui <- dashboardPage(
         br(),
         h3("HOW?"),
         h3("Closed Sweepstakes Strategy(소비자현상)"),
-        h4("일명 '스마트폰 5060' 마케팅 : 통신사와 제휴를 맺은 후, 열흘 동안 스마트폰을 50시간 이상 이용한 고객들을 대상으로 random 추첨을 통해 1등 고객에 당첨되면 간편결제시 경품을 받는 프로모션 실시")
+        h4("일명 '스마트폰 5060' 마케팅 : 통신사와 제휴를 맺어 특정 기간 동안 데이터 사용량이 일정 기준 이상을 달성한 고객들을 대상으로 random 추첨을 통해 간편 결제 이용 시 사용할 수 있는 파격적인 혜택을 제공")
       ),
       tabItem(
         tabName = "presentation_tab_4_2",
         h2("4. 분석 결과 및 전략"),
         h3("2. Experience Marketing"),
         h3("가맹점 카테고리 별 군집 분석 결과"),
-        plotOutput("presentation_tab_4_2_table_1", width = "600px", height = "200px"),
-        br(),
-        h4("✓ [온라인 쇼핑몰, 식비/외식, 대형마트, 편의점]은 간편결제금액 상위 가맹점 카테고리에 해당" ),
+        # plotOutput("presentation_tab_4_2_table_1", width = "600px", height = "200px"),
         imageOutput("presentation_tab_4_2_image", height = 'auto'),
         br(),
+        h4("✓ [온라인 쇼핑몰, 식비/외식, 대형마트, 편의점]은 간편결제금액 상위 가맹점 카테고리에 해당" ),
         h4("✓ 군집분석 결과, 간편결제 이용률이 증가할수록 위 가맹점들의 평균 결제 빈도가 증가한다."),
         h4("✓ 로지스틱분석 결과, [온라인 쇼핑몰, 편의점, 문화] 가맹점 카테고리가 간편결제 이용여부에 유의한 영향을 미침"), 
         br(),
@@ -233,7 +232,7 @@ ui <- dashboardPage(
         h4("✓ 실버전용결제 Subbrand Create 'Active Pay'출시 및 Activity Score에 따른 실버 등급제 실시"),
         h4("✓ 쇼핑, 음악, 만화, 스포츠, 게임에 대한 포인트 및 마일리지 보상과 같은 ‘시니어 요금제’를 차등하여 제공"),
         h4("✓ Experience marketing을 통한 Nonuser 포섭"),
-        h4("✓ 레저활동을 하지 않는 5060이 “Active Pay”를 처음 이용하여 레저를 즐길 경우, 1일 무료 체험마케팅 실시")
+        h4("✓ “Active Pay”를 처음 이용하여 레저를 즐길 경우, 1일 무료 체험마케팅 실시")
       ),
       tabItem(
         tabName = "presentation_tab_4_3",
@@ -309,7 +308,7 @@ server <- function(input, output) {
     usagetable<-table(usagefactor, agefactor)
     usagetable <- round(prop.table(table(usagefactor,agefactor),2)*100)
     colnames(usagetable)<-cbind("Fifty", "Over Sixty")
-    rownames(usagetable)<-rbind("USER", "NON-USER")
+    rownames(usagetable)<-rbind("NON-USER", "USER")
     
     usagetable
   })
